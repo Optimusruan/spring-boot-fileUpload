@@ -2,7 +2,11 @@ package controller;
 
 import org.json.JSONObject;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.core.io.FileSystemResource;
 import org.springframework.core.io.ResourceLoader;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.*;
@@ -11,10 +15,7 @@ import org.springframework.web.multipart.MultipartHttpServletRequest;
 
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
-import java.io.BufferedOutputStream;
-import java.io.File;
-import java.io.FileOutputStream;
-import java.io.IOException;
+import java.io.*;
 import java.nio.file.Paths;
 import java.util.*;
 
@@ -53,7 +54,7 @@ public class FileUploadController {
             String saveFileName = Integer.toString(Math.abs(random.nextInt()) % 100000) + Long.toString(Calendar.getInstance().getTime().getTime());
 
             //文件后缀名
-            String suffixName = originalFilename.substring(originalFilename.lastIndexOf("."));
+            String suffixName = originalFilename.substring(originalFilename.lastIndexOf(".")).toLowerCase();
             if (!file.isEmpty()) {
                 try {
                     byte[] bytes = file.getBytes();
@@ -72,6 +73,8 @@ public class FileUploadController {
             }
             upLoadMsg.add(tempMsg.toString());
         }
+
+        //封装返回的JSON
         respBody.put("listVal", upLoadMsg.toString());
         status.put("statusCode", "200");
         JSONObject temp = new JSONObject();
@@ -81,12 +84,36 @@ public class FileUploadController {
         response.getWriter().print(resultJson.toString());
     }
 
-    @RequestMapping(method = RequestMethod.GET, value = "/get/{filename}.{suffix}}")
+    @RequestMapping(method = RequestMethod.GET, value = "/get/{filename:.+}")
     @ResponseBody
-    public ResponseEntity<?> getFile(@PathVariable String filename, @PathVariable String suffix) {
-
+    public ResponseEntity<?> getFile(@PathVariable String filename, HttpServletResponse response) {
         try {
-            return ResponseEntity.ok(resourceLoader.getResource("file:" + Paths.get(ROOT, filename).toString()));
+            HttpHeaders headers = new HttpHeaders();
+            String suffix = filename.substring(filename.lastIndexOf(".") + 1).toLowerCase();
+            if (suffix.equals("png") || suffix.equals("jpeg") || suffix.equals("jpg") || suffix.equals("gif") || suffix.equals("bmp")) {
+
+                RandomAccessFile f = new RandomAccessFile(ROOT + filename, "r");
+                byte[] b = new byte[(int) f.length()];
+                f.readFully(b);
+                if (suffix.equals("jpg")) {
+                    headers.add("content-type", "image/jpeg");
+                } else {
+                    headers.add("content-type", "image/" + suffix);
+                }
+                return new ResponseEntity<byte[]>(b, headers, HttpStatus.CREATED);
+//                return ResponseEntity.ok().body(resourceLoader.getResource("file:" + Paths.get(ROOT, filename)).getFile());
+            } else {
+                File file = resourceLoader.getResource("file:" + Paths.get(ROOT, filename)).getFile();
+                if (file.exists()) {
+                    headers.add("Cache-Control", "no-cache, no-store, must-revalidate");
+                    headers.add("Content-Disposition", "attachment; filename=" + filename);
+                    headers.add("Pragma", "no-cache");
+                    headers.add("Expires", "0");
+                    return ResponseEntity.ok().headers(headers).contentLength(file.length()).contentType(MediaType.parseMediaType("application/octet-stream")).body(new FileSystemResource(file));
+                } else {
+                    return ResponseEntity.notFound().build();
+                }
+            }
         } catch (Exception e) {
             System.out.println(e.toString());
             return ResponseEntity.notFound().build();
