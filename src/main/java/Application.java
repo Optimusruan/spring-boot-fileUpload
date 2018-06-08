@@ -7,7 +7,7 @@ import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.WebSecurityConfigurerAdapter;
 
 @SpringBootApplication
-@ComponentScan("controller")
+@ComponentScan({"controller","service"})
 public class Application extends SpringBootServletInitializer {
 
     public static void main(String[] args) {
@@ -17,7 +17,14 @@ public class Application extends SpringBootServletInitializer {
     @Configuration
     public class WebSecurityConfig extends WebSecurityConfigurerAdapter {
         protected void configure(HttpSecurity http) throws Exception {
-            http.requiresChannel().anyRequest().requiresSecure();
+            http.requiresChannel().
+                    anyRequest().
+                    requiresSecure();
+            http.csrf().disable();
+            http.authorizeRequests().
+                    antMatchers("/").
+                    permitAll();
         }
     }
+
 }

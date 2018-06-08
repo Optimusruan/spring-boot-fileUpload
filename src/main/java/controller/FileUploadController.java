@@ -11,11 +11,15 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
-import org.springframework.web.multipart.MultipartHttpServletRequest;
 
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
-import java.io.*;
+import java.io.BufferedOutputStream;
+import java.io.File;
+import java.io.IOException;
+import java.io.RandomAccessFile;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.*;
 
@@ -34,16 +38,16 @@ public class FileUploadController {
 
     @RequestMapping(value = "/upload", method = RequestMethod.POST)
     @ResponseBody
-    public void upLoadFile(HttpServletRequest request, HttpServletResponse response) throws IOException {
-        List<MultipartFile> files = ((MultipartHttpServletRequest) request).getFiles("file");
+    public void upLoadFile(@RequestParam("file") MultipartFile[] files, HttpServletRequest request, HttpServletResponse response) throws IOException {
         BufferedOutputStream stream = null;
         JSONObject resultJson = new JSONObject();
         Map<String, String> status = new HashMap<>();
         Map<String, String> respBody = new HashMap<>();
         List<String> upLoadMsg = new ArrayList<>();
 
-
+        //遍历上传的文件数组
         for (MultipartFile file : files) {
+            //拼接返回的数据字符串
             StringBuffer tempMsg = new StringBuffer();
             //原始文件名
             String originalFilename = file.getOriginalFilename();
@@ -58,10 +62,8 @@ public class FileUploadController {
             if (!file.isEmpty()) {
                 try {
                     byte[] bytes = file.getBytes();
-                    File saveFile = new File(ROOT + saveFileName + suffixName);
-                    stream = new BufferedOutputStream(new FileOutputStream(saveFile));
-                    stream.write(bytes);
-                    stream.close();
+                    Path path = Paths.get(ROOT + saveFileName + suffixName);
+                    Files.write(path, bytes);
                     tempMsg.append("200|").append(saveFileName + suffixName).append("|success");
                 } catch (Exception e) {
                     tempMsg.append("202|").append("|error");
@@ -90,6 +92,8 @@ public class FileUploadController {
         try {
             HttpHeaders headers = new HttpHeaders();
             String suffix = filename.substring(filename.lastIndexOf(".") + 1).toLowerCase();
+
+            //如果是图片格式，直接返回图片，否则直接下载文件
             if (suffix.equals("png") || suffix.equals("jpeg") || suffix.equals("jpg") || suffix.equals("gif") || suffix.equals("bmp")) {
 
                 RandomAccessFile f = new RandomAccessFile(ROOT + filename, "r");
