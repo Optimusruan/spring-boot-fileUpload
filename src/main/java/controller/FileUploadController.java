@@ -1,5 +1,6 @@
 package controller;
 
+import entity.FilesEntity;
 import org.json.JSONObject;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.io.FileSystemResource;
@@ -11,16 +12,18 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
+import service.FilesService;
 
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
-import java.io.BufferedOutputStream;
 import java.io.File;
 import java.io.IOException;
 import java.io.RandomAccessFile;
+import java.math.BigInteger;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.security.MessageDigest;
 import java.util.*;
 
 @Controller
@@ -30,8 +33,12 @@ public class FileUploadController {
     private final ResourceLoader resourceLoader;
 
     @Autowired
+    private FilesService filesService;
+
+    @Autowired
     public FileUploadController(ResourceLoader resourceLoader) {
         this.resourceLoader = resourceLoader;
+
     }
 
     private final String ROOT = "/var/lib/tomcat8/data/";
@@ -39,7 +46,6 @@ public class FileUploadController {
     @RequestMapping(value = "/upload", method = RequestMethod.POST)
     @ResponseBody
     public void upLoadFile(@RequestParam("file") MultipartFile[] files, HttpServletRequest request, HttpServletResponse response) throws IOException {
-        BufferedOutputStream stream = null;
         JSONObject resultJson = new JSONObject();
         Map<String, String> status = new HashMap<>();
         Map<String, String> respBody = new HashMap<>();
@@ -62,13 +68,31 @@ public class FileUploadController {
             if (!file.isEmpty()) {
                 try {
                     byte[] bytes = file.getBytes();
+                    MessageDigest md5 = MessageDigest.getInstance("md5");
+                    md5.update(bytes);
                     Path path = Paths.get(ROOT + saveFileName + suffixName);
-                    Files.write(path, bytes);
-                    tempMsg.append("200|").append(saveFileName + suffixName).append("|success");
+                    String fileMd5 = new BigInteger(md5.digest()).toString(16);
+                    List<FilesEntity> filesEntities = filesService.isExistFile(fileMd5);
+                    //md5判断是否已有上传的文件
+                    if (filesEntities != null && filesEntities.size() == 0) {
+                        Files.write(path, bytes);
+                        FilesEntity filesEntity = new FilesEntity();
+                        filesEntity.setFileMd5(fileMd5);
+                        filesEntity.setFileSuffix(suffixName.substring(1));
+                        filesEntity.setFileName(saveFileName);
+                        filesEntity.setFileCount(0);
+                        filesEntity.setFileSize(Integer.toString(bytes.length));
+                        if (filesService.saveFileInfo(filesEntity)) {
+                            tempMsg.append("200|").append(saveFileName + suffixName).append("|success");
+                        } else {
+                            tempMsg.append("203|").append("|database error");
+                        }
+                    } else {
+                        tempMsg.append("200|").append(filesEntities.get(0).getFileName() +"."+ filesEntities.get(0).getFileSuffix()).append("|success");
+                    }
                 } catch (Exception e) {
-                    tempMsg.append("202|").append("|error");
+                    tempMsg.append("202|").append("|exception");
                     System.out.println(e.toString());
-                    stream = null;
                 }
             } else {
                 tempMsg.append("201|").append("|empty");

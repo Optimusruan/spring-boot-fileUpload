@@ -1,5 +1,14 @@
 spring:
   servlet:
     multipart:
-      max-file-size: 5MB
+      max-request-size: 100MB
+      max-file-size: 100MB
       enabled: true
+  jpa:
+    hibernate:
+      ddl-auto: update
+  datasource:
+    url: jdbc:mysql://120.79.247.84:3306/fileserver?useUnicode=true&amp;characterEncoding=utf8&amp;zeroDateTimeBehavior=convertToNull&amp;useSSL=true
+    username: root
+    password: adminRuan
+
